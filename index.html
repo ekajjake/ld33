@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="en">
+<head>
+	<meta charset="UTF-8" />
+    <title>Shawoop</title>
+	<script type="text/javascript" src="js/phaser.min.js"></script>
+    <style type="text/css">
+        body {
+            margin: 0;
+        }
+    </style>
+</head>
+<body>
+
+<script type="text/javascript">
+
+var SCREEN_WIDTH = 720;
+var SCREEN_HEIGHT = 1280;
+
+var game = new Phaser.Game(SCREEN_WIDTH, SCREEN_HEIGHT, Phaser.AUTO, '', { preload: preload, create: create, update: update }, false, false);
+
+var SCALE_FACTOR = 16;
+var MAN_SPEED = 1;
+var MAN_WALL;
+var MEN;
+
+function preload() {
+	game.load.spritesheet('background', 'assets/bg.png', 45, 80, 22);
+	game.load.spritesheet('monster', 'assets/monster.png', 14, 28, 8);
+	game.load.spritesheet('man', 'assets/man.png', 2, 8, 2);
+	game.scale.scaleMode = Phaser.ScaleManager.EXACT_FIT;
+	game.scale.minwidth = 360;
+	game.scale.minHeight = 640;
+	game.scale.maxWidth = 720;
+	game.scale.maxHeight = 1280;
+	game.scale.refresh();
+}
+
+function create() {
+	var bg = game.add.sprite(0,0, 'background');
+	bg.scale.setTo(SCALE_FACTOR, SCALE_FACTOR);
+	bg.animations.add('loop');
+	bg.animations.play('loop', 8, true, false);
+
+	var monster = game.add.sprite(15*SCALE_FACTOR, 15*SCALE_FACTOR, 'monster');
+	monster.scale.setTo(SCALE_FACTOR, SCALE_FACTOR);
+	monster.animations.add('loop');
+	monster.animations.play('loop', 10, true, false);
+	MAN_WALL = monster.y + monster.height - (8 * SCALE_FACTOR);
+
+	MEN = game.add.group();
+}
+
+function update() {
+	MEN.forEachExists(function(m){
+		if (m.y > MAN_WALL) {
+			m.y -= MAN_SPEED;
+		}
+		if (m.x < SCREEN_WIDTH * 0.40) {
+			m.x += 0.5 * MAN_SPEED;
+		}
+		if (m.x > SCREEN_WIDTH * 0.60) {
+			m.x -= 0.5 * MAN_SPEED;
+		}
+	}, this);
+	randomMan();
+}
+
+function createMan(x, y, group) {
+	var man = game.add.sprite(x, y, 'man');
+	man.scale.setTo(SCALE_FACTOR, SCALE_FACTOR);
+	man.animations.add('loop');
+	man.animations.play('loop', 4, true, false);
+	man.inputEnabled = true;
+	man.events.onInputDown.add(function() {
+		man.destroy();
+	}, this) // Context
+	group.add(man);
+	console.log("added man");
+}
+
+function randomMan() {
+	var r = Math.floor(Math.random() * 30);
+	if (r === 1) {
+		var x = Math.floor(Math.random() * SCREEN_WIDTH);
+		var y = SCREEN_HEIGHT + 100;
+		createMan(x, y, MEN);
+	}
+}
+</script>
+
+</body>
+</html>
