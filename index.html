@@ -182,10 +182,18 @@
 				}
 			}, this);
 			HELIS.forEachExists(function(m){
-				if (m.x > - 8*SCALE_FACTOR) {
-					m.x -= HELI_SPEED;
-				} else {
-					m.destroy(); // Offscreen helis are killed
+				if (m.side === 'left') {
+					if (m.x < SCREEN_WIDTH + 8*SCALE_FACTOR) {
+						m.x += HELI_SPEED;
+					} else {
+						m.destroy(); // Offscreen helis are killed
+					}
+				} else if (m.side === 'right') {
+					if (m.x > -8*SCALE_FACTOR) {
+						m.x -= HELI_SPEED;
+					} else {
+						m.destroy(); // Offscreen helis are killed
+					}
 				}
 				// Damage the monster if in contact with it.
 				if (m.x > 15*SCALE_FACTOR && m.x < 25*SCALE_FACTOR) {
@@ -259,20 +267,36 @@
 			group.add(man);
 			MAN_COUNT++; // Not used, but could be...
 		},
-		createHeli: function(x, y, group) {
+		createHeli: function(x, y, group, side) {
 			var heli = this.add.sprite(x, y, 'heli');
-			heli.scale.setTo(SCALE_FACTOR, SCALE_FACTOR);
-			heli.animations.add('loop');
-			heli.animations.play('loop', 12, true, false);
-			heli.inputEnabled = true;
-			heli.events.onInputDown.add(function() {
-				SCORE++;
-				heli.destroy();
-				EXPLOSION_FX.play('', 0, 0.5, false, true);
-			}, this)
-			// Adds heli to global group
-			group.add(heli);
-			HELI_COUNT++; // Not used, but could be...
+			heli.side = side;
+			if (side === 'left') {
+				heli.scale.setTo(-SCALE_FACTOR, SCALE_FACTOR);
+				heli.animations.add('loop');
+				heli.animations.play('loop', 12, true, false);
+				heli.inputEnabled = true;
+				heli.events.onInputDown.add(function() {
+					SCORE++;
+					heli.destroy();
+					EXPLOSION_FX.play('', 0, 0.5, false, true);
+				}, this)
+				// Adds heli to global group
+				group.add(heli);
+				HELI_COUNT++; // Not used, but could be...
+			} else if (side === 'right') {
+				heli.scale.setTo(SCALE_FACTOR, SCALE_FACTOR);
+				heli.animations.add('loop');
+				heli.animations.play('loop', 12, true, false);
+				heli.inputEnabled = true;
+				heli.events.onInputDown.add(function() {
+					SCORE++;
+					heli.destroy();
+					EXPLOSION_FX.play('', 0, 0.5, false, true);
+				}, this)
+				// Adds heli to global group
+				group.add(heli);
+				HELI_COUNT++; // Not used, but could be...
+			}
 		},
 		randomMan: function() {
 			// Pretty consistent spawn interval, with a hint of pseudo-randomness
@@ -289,7 +313,11 @@
 			if (r === 1) {
 				var x = SCREEN_WIDTH + 16*SCALE_FACTOR;
 				var y = 8*SCALE_FACTOR + Math.floor(Math.random() * 16*SCALE_FACTOR);
-				this.createHeli(x, y, HELIS);
+				this.createHeli(x, y, HELIS, 'right');
+			} else if (r === 2) {
+				var x = -16*SCALE_FACTOR;
+				var y = 8*SCALE_FACTOR + Math.floor(Math.random() * 16*SCALE_FACTOR);
+				this.createHeli(x, y, HELIS, 'left');
 			}
 		},
 		updateHealthBar: function() {
