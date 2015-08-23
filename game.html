@@ -1,0 +1,428 @@
+<!doctype html>
+<html lang="en">
+<head>
+	<meta charset="UTF-8" />
+	<title>RAMPAGE MONSTER</title>
+    <link rel="manifest" href="manifest.json">
+	<script type="text/javascript" src="js/phaser.min.js"></script>
+	<style type="text/css">
+	body {
+		margin: 0;
+	}
+	#canv {
+		margin-left: auto;
+		margin-right: auto;
+		height: 100vh;
+		width: auto;
+	}
+	</style>
+    <script>
+  (function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
+  (i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
+  m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
+  })(window,document,'script','//www.google-analytics.com/analytics.js','ga');
+
+  ga('create', 'UA-57032554-3', 'auto');
+  ga('send', 'pageview');
+
+</script>
+</head>
+<body>
+	<div id="canv"></div>
+	<script type="text/javascript">
+
+	var SCREEN_WIDTH = 360;
+	var SCREEN_HEIGHT = 640;
+
+	// Global game states
+	var menu = function() {};
+	var play = function() {};
+	var gameOver = function() {};
+
+	var game = new Phaser.Game(SCREEN_WIDTH, SCREEN_HEIGHT, Phaser.AUTO, 'canv', menu, false, false);
+
+	// Tweakables
+	var SCALE_FACTOR = 8;		// Inflate pixel art
+	var MAN_DAMAGE = .01;
+	var HELI_DAMAGE = .05;
+	var HELI_THRESH = 10;		// Score when HELIS begin to appear
+	var MAX_HEALTH = 100;
+	var LEVEL_DIVISION = 20;	// Score difference needed to increase level
+
+    var HARD_BASE_MAN_SPEED = 1.5;
+	var HARD_MAN_SPEED_INC = 0.2;
+	var HARD_BASE_HELI_SPEED = 0.8;
+	var HARD_MAN_PROB = 15;    // 1 in X per update
+	var HARD_HELI_PROB = 120;  // 1 in X per update
+
+    var EASY_BASE_MAN_SPEED = 0.8;
+	var EASY_MAN_SPEED_INC = 0.2;
+	var EASY_BASE_HELI_SPEED = 0.6;
+	var EASY_MAN_PROB = 30;    // 1 in X per update
+	var EASY_HELI_PROB = 160;  // 1 in X per update
+
+	// Globals
+    var BASE_MAN_SPEED = HARD_BASE_MAN_SPEED;
+	var MAN_SPEED_INC = HARD_MAN_SPEED_INC;
+	var BASE_HELI_SPEED = HARD_BASE_HELI_SPEED;
+	var MAN_PROB = HARD_MAN_PROB;
+	var HELI_PROB = HARD_HELI_PROB;
+	var MEN;
+	var MAN_WALL;
+	var HELIS;
+	var MAN_COUNT = 0;
+	var HELI_COUNT = 0;
+	var SCORE = 0;
+	var LEVELED_UP = true;
+	var LAZER_FX;
+	var EXPLOSION_FX;
+	var RAMPAGE_FX;
+	var THEME;
+	var SCORE_TEXT;
+	var HEALTH = MAX_HEALTH;
+    var MAN_SPEED;
+    var HELI_SPEED;
+
+    // Global difficulty
+    var SET_DIFFICULTY = function(d) {
+        if (d === 'hard') {
+            MAN_PROB = HARD_MAN_PROB;
+            HELI_PROB = HARD_HELI_PROB;
+            BASE_MAN_SPEED = HARD_BASE_MAN_SPEED;
+            BASE_HELI_SPEED = HARD_BASE_HELI_SPEED;
+            MAN_SPEED_INC = HARD_MAN_SPEED_INC;
+        } else if (d === 'easy') {
+            MAN_PROB = EASY_MAN_PROB;
+            HELI_PROB = EASY_HELI_PROB;
+            BASE_MAN_SPEED = EASY_BASE_MAN_SPEED;
+            BASE_HELI_SPEED = EASY_BASE_HELI_SPEED;
+            MAN_SPEED_INC = EASY_MAN_SPEED_INC;
+            console.log("set easy");
+        }
+        MAN_SPEED = BASE_MAN_SPEED;
+    	HELI_SPEED = BASE_HELI_SPEED;
+    }
+
+	// Start Menu State
+	menu.prototype = {
+		preload: function() {
+			// Scale to screen
+			game.scale.scaleMode = Phaser.ScaleManager.EXACT_FIT;
+			game.scale.minwidth = SCREEN_WIDTH;
+			game.scale.minHeight = SCREEN_HEIGHT;
+			game.scale.refresh();
+			game.scale.startFullScreen(false);
+
+			// Add states to be transitioned to
+			this.state.add("Play", play);
+            this.state.add('GameOver', gameOver);
+
+			// Import resources
+			this.load.image('title', 'assets/title.png');
+            this.load.image('over', 'assets/over.png');
+            this.load.image('health', 'assets/health.png');
+
+			this.load.spritesheet('rampage', 'assets/rampage.png', 32, 16, 4);
+			this.load.spritesheet('easy', 'assets/easy.png', 16, 8, 2);
+            this.load.spritesheet('hard', 'assets/hard.png', 16, 8, 2);
+            this.load.spritesheet('background', 'assets/bg.png', 45, 80, 22);
+			this.load.spritesheet('monster', 'assets/monster.png', 14, 28, 8);
+			this.load.spritesheet('man', 'assets/man.png', 8, 8, 2);
+			this.load.spritesheet('explosion', 'assets/explosion.png', 16, 16, 10);
+			this.load.spritesheet('emitter', 'assets/emitter.png', 16, 16, 10);
+			this.load.spritesheet('heli', 'assets/heli.png', 16, 8, 8);
+			this.load.spritesheet('rampage', 'assets/rampage.png', 32, 16, 4);
+
+			this.load.audio('theme', 'assets/audio/theme.wav');
+			this.load.audio('lazer_sound', 'assets/audio/lazer.wav');
+			this.load.audio('explosion_sound', 'assets/audio/explosion.wav');
+			this.load.audio('rampage_sound', 'assets/audio/rampage.wav');
+
+			this.load.bitmapFont('font', 'assets/fonts/pixel.png', 'assets/fonts/pixel.fnt');
+		},
+		create: function() {
+			this.title = this.add.sprite(0, 0, 'title');
+			this.title.scale.setTo(SCALE_FACTOR, SCALE_FACTOR);
+
+			// Rampage sprite
+			this.rampage = this.add.sprite(7*SCALE_FACTOR, 9*SCALE_FACTOR, 'rampage');
+			this.rampage.scale.setTo(SCALE_FACTOR, SCALE_FACTOR);
+			this.rampage.inputEnabled = true;
+			this.rampage.animations.add('loop');
+			this.rampage.animations.play('loop', 6, true, false);
+
+			// Easy button
+			this.easyButton = this.add.sprite(14*SCALE_FACTOR, 48*SCALE_FACTOR, 'easy');
+			this.easyButton.scale.setTo(SCALE_FACTOR, SCALE_FACTOR);
+			this.easyButton.inputEnabled = true;
+			this.easyButton.animations.add('loop');
+			this.easyButton.animations.play('loop', 2, true, false);
+			this.easyButton.events.onInputUp.add(function() {
+                SET_DIFFICULTY('easy');
+				this.state.start("Play");
+			}, this)
+
+            // Hard button
+            this.hardButton = this.add.sprite(14*SCALE_FACTOR, 60*SCALE_FACTOR, 'hard');
+			this.hardButton.scale.setTo(SCALE_FACTOR, SCALE_FACTOR);
+			this.hardButton.inputEnabled = true;
+			this.hardButton.animations.add('loop');
+			this.hardButton.animations.play('loop', 2, true, false);
+			this.hardButton.events.onInputUp.add(function() {
+                SET_DIFFICULTY('hard');
+				this.state.start("Play");
+			}, this)
+		}
+	}
+
+	// Game State
+	play.prototype = {
+		create: function() {
+			// Background sprite
+			var bg = this.add.sprite(0,0, 'background');
+			bg.scale.setTo(SCALE_FACTOR, SCALE_FACTOR);
+			bg.animations.add('loop');
+			bg.animations.play('loop', 6, true, false);
+
+			// Monster sprite
+			var monster = this.add.sprite(15*SCALE_FACTOR, 15*SCALE_FACTOR, 'monster');
+			monster.scale.setTo(SCALE_FACTOR, SCALE_FACTOR);
+			monster.animations.add('loop');
+			monster.animations.play('loop', 12, true, false);
+			MAN_WALL = monster.y + monster.height - (8 * SCALE_FACTOR);
+
+			// Audio & SFX
+			THEME =  this.add.audio('theme');
+			THEME.play('', 0, 0.5, true);
+			LAZER_FX =  this.add.audio('lazer_sound');
+			EXPLOSION_FX =  this.add.audio('explosion_sound');
+			RAMPAGE_FX=  this.add.audio('rampage_sound');
+
+			// Enemy groups
+			MEN = this.add.group();
+			HELIS = this.add.group();
+
+			// Health bar
+			HEALTH_BAR = this.add.sprite(0, SCREEN_HEIGHT - SCALE_FACTOR, 'health');
+			HEALTH_BAR.scale.setTo(SCALE_FACTOR, SCALE_FACTOR);
+			HEALTH_BAR.anchor.setTo(0, 0);
+
+			// Input listeners for visuals
+			this.input.onDown.add(this.makeLazer, this);
+			this.input.onDown.add(this.makeExplosion, this);
+			this.input.onDown.add(this.makeLazerEmitter, this);
+		},
+		update: function() {
+			MEN.forEachExists(function(m){
+				// Man shouldn't pass monsters feet
+				if (m.y > MAN_WALL) {
+					m.y -= MAN_SPEED;
+				} else {
+					HEALTH -= MAN_DAMAGE;
+				}
+				// Move towards the middle
+				if (m.x < SCREEN_WIDTH * 0.35) {
+					m.x += 0.5 * MAN_SPEED;
+				}
+				if (m.x > SCREEN_WIDTH * 0.45) {
+					m.x -= 0.5 * MAN_SPEED;
+				}
+			}, this);
+			HELIS.forEachExists(function(m){
+				if (m.side === 'left') {
+					if (m.x < SCREEN_WIDTH + 8*SCALE_FACTOR) {
+						m.x += HELI_SPEED;
+					} else {
+						m.destroy(); // Offscreen helis are killed
+					}
+				} else if (m.side === 'right') {
+					if (m.x > -8*SCALE_FACTOR) {
+						m.x -= HELI_SPEED;
+					} else {
+						m.destroy(); // Offscreen helis are killed
+					}
+				}
+				// Damage the monster if in contact with it.
+				if (m.x > 15*SCALE_FACTOR && m.x < 25*SCALE_FACTOR) {
+					HEALTH -= HELI_DAMAGE;
+				}
+			}, this);
+			this.randomMan();
+			// Helis don't spawn immediately
+			if (SCORE >= HELI_THRESH) {
+				this.randomHeli();
+			}
+			if (SCORE > 0 && SCORE % LEVEL_DIVISION == 0 && !LEVELED_UP) {
+				LEVELED_UP = true;
+				MAN_SPEED += MAN_SPEED_INC;
+				this.rampage = this.add.sprite(7*SCALE_FACTOR, 0*SCALE_FACTOR, 'rampage');
+				this.rampage.scale.setTo(SCALE_FACTOR, SCALE_FACTOR);
+				this.rampage.inputEnabled = true;
+				this.rampage.animations.add('loop');
+				this.rampage.animations.play('loop', 3, false, true);
+				RAMPAGE_FX.play('', 0, 0.5, false, true);
+			}
+			this.updateHealthBar();
+		},
+		makeLazer: function(pointer) { // Lazer is supposed to be spelled wrong.
+			var lazer = game.add.graphics();
+
+			// Lazer is made up of three thick red lines
+			lazer.lineStyle(SCALE_FACTOR, 0xFF0000, 1);
+			lazer.moveTo(22*SCALE_FACTOR, 22*SCALE_FACTOR); // Eyes of monster-ish
+			// Possibly superfluous math... looked good.
+			lazer.lineTo(pointer.x - SCALE_FACTOR/(Math.sqrt(2)), pointer.y - SCALE_FACTOR);
+
+			lazer.lineStyle(SCALE_FACTOR, 0xFF0000, 1);
+			lazer.moveTo(23*SCALE_FACTOR, 22*SCALE_FACTOR);
+			lazer.lineTo(pointer.x, pointer.y);
+
+			lazer.lineStyle(SCALE_FACTOR, 0xFF0000, 1);
+			lazer.moveTo(24*SCALE_FACTOR, 22*SCALE_FACTOR);
+			lazer.lineTo(pointer.x + SCALE_FACTOR/(Math.sqrt(2)), pointer.y + SCALE_FACTOR);
+
+			lazer.endFill();
+			this.time.events.add(200, lazer.destroy, lazer); // Get rid of the LAZER after 200ms
+		},
+		makeExplosion: function(pointer) {
+			// Instantiate explosion at pointer
+			var ex = this.add.sprite(pointer.x - 8*SCALE_FACTOR, pointer.y - 8*SCALE_FACTOR, 'explosion');
+			ex.scale.setTo(SCALE_FACTOR, SCALE_FACTOR);
+			ex.animations.add('one');
+			ex.animations.play('one', 24, false, true); // Destroy when completed
+		},
+		makeLazerEmitter: function(pointer) {
+			// Instantiate emitter at monster's eyes
+			var ex = this.add.sprite(14*SCALE_FACTOR, 13*SCALE_FACTOR, 'emitter');
+			ex.scale.setTo(SCALE_FACTOR, SCALE_FACTOR);
+			ex.animations.add('one');
+			ex.animations.play('one', 24, false, true); // Destroy when completed
+			LAZER_FX.play('', 0, 0.5, false, true);
+		},
+		createMan: function(x, y, group) {
+			var man = this.add.sprite(x, y, 'man');
+			man.scale.setTo(SCALE_FACTOR, SCALE_FACTOR);
+			man.animations.add('loop');
+			man.animations.play('loop', 4, true, false);
+			man.inputEnabled = true;
+			man.events.onInputDown.add(function() {
+				SCORE++;
+				LEVELED_UP = false;
+				man.destroy(); // Ensure that dead men take up no space
+			}, this)
+			// Adds man to global group
+			group.add(man);
+			MAN_COUNT++; // Not used, but could be...
+		},
+		createHeli: function(x, y, group, side) {
+			var heli = this.add.sprite(x, y, 'heli');
+			heli.side = side;
+			if (side === 'left') {
+				heli.scale.setTo(-SCALE_FACTOR, SCALE_FACTOR);
+				heli.animations.add('loop');
+				heli.animations.play('loop', 12, true, false);
+				heli.inputEnabled = true;
+				heli.events.onInputDown.add(function() {
+					SCORE++;
+					heli.destroy();
+					EXPLOSION_FX.play('', 0, 0.5, false, true);
+				}, this)
+				// Adds heli to global group
+				group.add(heli);
+				HELI_COUNT++; // Not used, but could be...
+			} else if (side === 'right') {
+				heli.scale.setTo(SCALE_FACTOR, SCALE_FACTOR);
+				heli.animations.add('loop');
+				heli.animations.play('loop', 12, true, false);
+				heli.inputEnabled = true;
+				heli.events.onInputDown.add(function() {
+					SCORE++;
+					heli.destroy();
+					EXPLOSION_FX.play('', 0, 0.5, false, true);
+				}, this)
+				// Adds heli to global group
+				group.add(heli);
+				HELI_COUNT++; // Not used, but could be...
+			}
+		},
+		randomMan: function() {
+			// Pretty consistent spawn interval, with a hint of pseudo-randomness
+			var r = Math.floor(Math.random() * MAN_PROB);
+			if (r === 1) {
+				var x = Math.floor(Math.random() * SCREEN_WIDTH);
+				var y = SCREEN_HEIGHT + 100;
+				this.createMan(x, y, MEN);
+			}
+		},
+		randomHeli: function() {
+			// Pretty consistent spawn interval, with a hint of pseudo-randomness
+			var r = Math.floor(Math.random() * HELI_PROB);
+			if (r === 1) {
+				var x = SCREEN_WIDTH + 16*SCALE_FACTOR;
+				var y = 16*SCALE_FACTOR + Math.floor(Math.random() * 16*SCALE_FACTOR);
+				this.createHeli(x, y, HELIS, 'right');
+			} else if (r === 2) {
+				var x = -16*SCALE_FACTOR;
+				var y = 16*SCALE_FACTOR + Math.floor(Math.random() * 16*SCALE_FACTOR);
+				this.createHeli(x, y, HELIS, 'left');
+			}
+		},
+		updateHealthBar: function() {
+			// Rescale health bar to current health percentage
+			HEALTH_BAR.scale.setTo(SCALE_FACTOR * (HEALTH/MAX_HEALTH), SCALE_FACTOR);
+			if (HEALTH <= 0) {
+				THEME.stop();
+				this.state.start("GameOver");
+			}
+		}
+	}
+
+	// Game Over State
+	gameOver.prototype = {
+		create: function() {
+			this.title = this.add.sprite(0, 0, 'over');
+			this.title.scale.setTo(SCALE_FACTOR, SCALE_FACTOR);
+
+			SCORE_TEXT = this.add.bitmapText(SCREEN_WIDTH / 2, 10*SCALE_FACTOR, 'font', '', 6);
+			SCORE_TEXT.text = SCORE;
+			SCORE_TEXT.scale.setTo(SCALE_FACTOR, SCALE_FACTOR);
+			SCORE_TEXT.anchor.setTo(0.5, 0.5);
+
+            // Easy button
+			this.easyButton = this.add.sprite(14*SCALE_FACTOR, 54*SCALE_FACTOR, 'easy');
+			this.easyButton.scale.setTo(SCALE_FACTOR, SCALE_FACTOR);
+			this.easyButton.inputEnabled = true;
+			this.easyButton.animations.add('loop');
+			this.easyButton.animations.play('loop', 2, true, false);
+			this.easyButton.events.onInputUp.add(function() {
+                this.reset();
+                SET_DIFFICULTY('easy');
+				this.state.start("Play");
+			}, this)
+
+            // Hard button
+            this.hardButton = this.add.sprite(14*SCALE_FACTOR, 66*SCALE_FACTOR, 'hard');
+			this.hardButton.scale.setTo(SCALE_FACTOR, SCALE_FACTOR);
+			this.hardButton.inputEnabled = true;
+			this.hardButton.animations.add('loop');
+			this.hardButton.animations.play('loop', 2, true, false);
+			this.hardButton.events.onInputUp.add(function() {
+                this.reset();
+                SET_DIFFICULTY('hard');
+				this.state.start("Play");
+			}, this)
+		},
+        reset: function() {
+            MAN_SPEED = BASE_MAN_SPEED;
+            HELI_SPEED = BASE_HELI_SPEED;
+            MAN_COUNT = 0;
+            HELI_COUNT = 0;
+            SCORE = 0;
+            HEALTH = MAX_HEALTH;
+        }
+	}
+
+	</script>
+
+</body>
+</html>
